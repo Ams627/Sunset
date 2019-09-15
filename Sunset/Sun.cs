@@ -184,8 +184,7 @@ namespace Sunset
 
             // Get nutations in longitude and obliquity - these are returned
             // in RADIANS:
-            double dpsi, depsilon;
-            GetNutation(dpsi, depsilon, jde);
+            Nutation.GetNutation(out var dpsi, out var depsilon, jde);
 
             sun += dpsi;
 
@@ -205,14 +204,74 @@ namespace Sunset
             delta = Asin(Sin(epsilon0) * Sin(sun));
         }
 
-        private static double GetEpsilon0(double jde)
+        private static double Fix2Pi(double x)
         {
-            throw new NotImplementedException();
+            x = x % 2 * PI;
+            if (x < 0.0)
+            {
+                x += 2 * PI;
+            }
+            return x;
         }
 
-        private static double GetDeltaLamda(double jde)
+        // returns epsilon 0 IN RADIANS - from the expression on page 135
+        // (equation 21.3)
+        private static double GetEpsilon0(double jd)
         {
-            throw new NotImplementedException();
+            double T = (jd - 2451545.0) / 36525.0;
+            double U = T / 100.0;
+
+            // get epsilon 0 in arcseconds according to equation 21.3:
+            double epsilon0 = 3600.0 * 23.0 + 60.0 * 26.0 + 21.448 -
+                                4680.93 * U -
+                                1.55 * U * U +
+                                1999.25 * U * U * U -
+                                51.38 * U * U * U * U -
+                                249.67 * U * U * U * U * U -
+                                39.05 * U * U * U * U * U * U +
+                                7.12 * U * U * U * U * U * U * U +
+                                27.87 * U * U * U * U * U * U * U * U +
+                                5.79 * U * U * U * U * U * U * U * U * U +
+                                2.45 * U * U * U * U * U * U * U * U * U * U;
+
+            // return in radians:
+            return epsilon0 * PI / 180.0 / 3600.0;
+        }
+
+        private static double GetDeltaLamda(double jd)
+        {
+            double T = (jd - 2451545.0) / 365250;
+
+            double result =
+                    3548.193 +
+                    118.568 * Sin(87.5287 + 359993.7286 * T) +
+                    2.476 * Sin(85.0561 + 719987.4571 * T) +
+                    1.376 * Sin(27.8502 + 4452671.1152 * T) +
+                    0.119 * Sin(73.1375 + 450368.88564 * T) +
+                    0.114 * Sin(337.2264 + 329644.6718 * T) +
+                    0.086 * Sin(222.5400 + 659289.3436 * T) +
+                    0.078 * Sin(162.8136 + 9224659.7195 * T) +
+                    0.054 * Sin(82.5823 + 1079981.1857 * T) +
+                    0.052 * Sin(171.5189 + 225184.4282 * T) +
+                    0.034 * Sin(30.3214 + 4092677.3866 * T) +
+                    0.033 * Sin(119.8105 + 337181.4711 * T) +
+                    0.023 * Sin(247.5418 + 299295.6151 * T) +
+                    0.023 * Sin(325.1526 + 315559.5560 * T) +
+                    0.021 * Sin(155.1241 + 675553.2846 * T) +
+                    7.311 * T * Sin(333.4515 + 359993.7286 * T) +
+                    0.305 * T * Sin(330.9814 + 719987.4571 * T) +
+                    0.010 * T * Sin(328.5170 + 1079981.1857 * T) +
+                    0.309 * T * T * Sin(241.4518 + 359993.7286 * T) +
+                    0.021 * T * T * Sin(205.0482 + 719987.4571 * T) +
+                    0.004 * T * T * Sin(297.8610 + 4452671.1152 * T) +
+                    0.010 * T * T * T * Sin(154.7066 + 359993.7286 * T);
+
+            // to degrees:
+            result /= 3600.0;
+            // to radians:
+            result *= PI / 180.0;
+
+            return result;
         }
 
         private static void GetNutation(double dpsi, double depsilon, double jde)
@@ -232,7 +291,7 @@ namespace Sunset
             for (int i = 0; i < series.Length; i++)
             {
                 double sum = 0;
-                for (int j = 0; j < series[i].Length; j++)
+                for (int j = 0; j < series[i].Length / 3; j++)
                 {
                     double a = series[i][j * 3];
                     double b = series[i][j * 3 + 1];

@@ -11,9 +11,16 @@ namespace Sunset
     {
         private static void Main(string[] args)
         {
-                try
+            try
             {
-    //startstarttypingtypingherehere
+                var lat = 50.0755;
+                var lon = 14.4378;
+                var date = DateTime.Today;
+                Sun.SunRise(out var rise, out var set, lat, lon, date);
+                rise *= 24.0;
+                set *= 24.0;
+                Console.WriteLine($"sun rise {(int)(rise)}:{(int)((rise - Math.Truncate(rise)) * 60)} set {(int)(set)}:{(int)((set - Math.Truncate(set)) * 60)}");
+                Console.WriteLine();
             }
             catch (Exception ex)
             {
