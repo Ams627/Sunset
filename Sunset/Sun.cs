@@ -3,20 +3,78 @@ using static System.Math;
 
 namespace Sunset
 {
+    static class Utils
+    {
+        /// <summary>
+        /// Given a DateTime, return a Julian Date. The time component of the input date is ignored.
+        /// </summary>
+        /// <param name="date"></param>
+        /// <returns></returns>
+        public static double GetJulianDate(DateTime date)
+        {
+            var d = date.Day;
+            var m = date.Month;
+            var y = date.Year;
+            var serial = (1461 * (y + 4800 + (m - 14) / 12)) / 4 +
+                 (367 * (m - 2 - 12 * ((m - 14) / 12))) / 12 -
+                 (3 * ((y + 4900 + (m - 14) / 12) / 100)) / 4 + d - 32075;
+
+            double seconds = date.Hour * 3600 + date.Minute * 60 + date.Second;
+            return serial - 0.5 + seconds / 86400.0;
+        }
+
+    }
+
+    static class VSop87d
+    {
+        /// <summary>
+        /// Sum a VSOP series for a given tau
+        /// </summary>
+        /// <param name="series"></param>
+        /// <param name="tau"></param>
+        /// <returns></returns>
+        public static double SumSeries(double[][] series, double tau)
+        {
+            var sums = new double[series.Length];
+            for (int i = 0; i < series.Length; i++)
+            {
+                double sum = 0;
+                for (int j = 0; j < series[i].Length / 3; j++)
+                {
+                    double a = series[i][j * 3];
+                    double b = series[i][j * 3 + 1];
+                    double c = series[i][j * 3 + 2];
+                    double term = a * Cos(b + c * tau);
+                    sum += term;
+                }
+                sums[i] = sum;
+            }
+
+            var i2 = 0;
+            double finalSum = 0.0, tauPower = 1.0;
+            for (; i2 < series.Length; i2++, tauPower *= tau)
+            {
+                finalSum += sums[i2] * tauPower;
+            }
+
+            return finalSum;
+        }
+    }
+
     static class Sun
     {
         /// <summary>
         /// Calculate sunrise and sunset given latitude, longitude and date
         /// </summary>
-        /// <param name="rise">output - the calulcated sunrise (0.0-1.0) fraction of a day</param>
-        /// <param name="set">output - the calulcated sunset (0.0-1.0) fraction of a day</param>
-        /// <param name="lat">latitude in raidans</param>
-        /// <param name="lon">longitude in raidans with negative being west from Greenwich</param>
+        /// <param name="rise">output - the calulcated sunrise (0.0-1.0) fraction of a day representing a UTC timepoint on the date specified</param>
+        /// <param name="set">output - the calulcated sunset (0.0-1.0) fraction of a day representing a UTC timepoint on the date specified</param>
+        /// <param name="lat">latitude in degrees (North is positive)</param>
+        /// <param name="lon">longitude in degrees (East is positive - i.e. most places in continental Europe are positive)</param>
         /// <param name="date">the date for which to calculate sunrise and sunset</param>
         static public void SunRise(out double rise, out double set, double lat, double lon, DateTime date)
         {
             double T;
-            double jd = GetJulianDate(date);
+            double jd = Utils.GetJulianDate(date);
             T = (jd - 2451545.0) / 36525.0;
 
             // sidereal time at greenwich page 83
@@ -34,17 +92,14 @@ namespace Sunset
             GetSunPos(out var alpha1, out var delta1, date - TimeSpan.FromDays(1));
             GetSunPos(out var alpha2, out var delta2, date);
             GetSunPos(out var alpha3, out var delta3, date + TimeSpan.FromDays(1));
-            Console.WriteLine("------------------");
-            //phms(alpha2);
-            //pdms(delta2);
-            Console.WriteLine("------------------");
 
             // for the sun only - see pages 97-98 - get h0 in radians:
             double h0 = -0.8333333333 * Math.PI / 180.0; // RADIANS
 
-            // use correct symbols - see page 97 and covert to radians:
+            // use correct symbols - see page 97 and covert to radians - also reverse the sign of longitude since 
+            // astronomical calculations expect it to have the opposite sign:
             double phi = lat * Math.PI / 180.0;
-            double L = lon * Math.PI / 180.0;
+            double L = -lon * Math.PI / 180.0;
 
             // equation 14.1 - see page 98
             double cosH0 = (Sin(h0) - Sin(phi) *
@@ -152,18 +207,18 @@ namespace Sunset
         /// <param name="delta"></param>
         /// <param name="date">The date for which to get the sun's position</param>
         /// <param name="time">The time for which to get the sun's position (zero = midnight, 1.0 = midnight the next day)</param>
-        private static void GetSunPos(out double alpha, out double delta, DateTime date, double time = 0)
+        public static void GetSunPos(out double alpha, out double delta, DateTime date, double time = 0)
         {
-            double jde = GetJulianDate(date) + time;
+            double jde = Utils.GetJulianDate(date) + time;
 
             double tau = (jde - 2451545.0) / 365250;
 
             double l, b, r;
 
             // get heliocentric coordinates for earth from VSOP series:
-            l = SumSeries(VSOPEarth.Along, tau); // radians
-            b = SumSeries(VSOPEarth.Alat, tau);  // radians
-            r = SumSeries(VSOPEarth.ARad, tau);  // astronomical units
+            l = VSop87d.SumSeries(VSOPEarth.Along, tau); // radians
+            b = VSop87d.SumSeries(VSOPEarth.Alat, tau);  // radians
+            r = VSop87d.SumSeries(VSOPEarth.ARad, tau);  // astronomical units
 
             // adjust to get geocentric coordinates of the sun:
             double sun = l + PI;
@@ -171,7 +226,6 @@ namespace Sunset
 
             // get in 0-360 degrees:
             sun = Fix2Pi(sun);
-
 
             // Do the FK5 corrections - page 154 equations 24.9
             double T = 10 * tau;
@@ -206,7 +260,7 @@ namespace Sunset
 
         private static double Fix2Pi(double x)
         {
-            x = x % 2 * PI;
+            x = x % (2 * PI);
             if (x < 0.0)
             {
                 x += 2 * PI;
@@ -274,58 +328,5 @@ namespace Sunset
             return result;
         }
 
-        private static void GetNutation(double dpsi, double depsilon, double jde)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Sum a VSOP series for a given tau
-        /// </summary>
-        /// <param name="series"></param>
-        /// <param name="tau"></param>
-        /// <returns></returns>
-        private static double SumSeries(double[][] series, double tau)
-        {
-            var sums = new double[series.Length];
-            for (int i = 0; i < series.Length; i++)
-            {
-                double sum = 0;
-                for (int j = 0; j < series[i].Length / 3; j++)
-                {
-                    double a = series[i][j * 3];
-                    double b = series[i][j * 3 + 1];
-                    double c = series[i][j * 3 + 2];
-                    double term = a * Cos(b + c * tau);
-                    sum += term;
-                }
-                sums[i] = sum;
-            }
-
-            var i2 = 0;
-            double finalSum = 0.0, tauPower = 1.0;
-            for (; i2 < series.Length; i2++, tauPower *= tau)
-            {
-                finalSum += sums[i2] * tauPower;
-            }
-
-            return finalSum;
-        }
-
-        /// <summary>
-        /// Given a DateTime, return a Julian Date. The time component of the input date is ignored.
-        /// </summary>
-        /// <param name="date"></param>
-        /// <returns></returns>
-        private static double GetJulianDate(DateTime date)
-        {
-            var d = date.Day;
-            var m = date.Month;
-            var y = date.Year;
-            var serial = (1461 * (y + 4800 + (m - 14) / 12)) / 4 +
-                 (367 * (m - 2 - 12 * ((m - 14) / 12))) / 12 -
-                 (3 * ((y + 4900 + (m - 14) / 12) / 100)) / 4 + d - 32075;
-            return serial - 0.5;
-        }
     }
 }
