@@ -3,27 +3,6 @@ using static System.Math;
 
 namespace Sunset
 {
-    static class Utils
-    {
-        /// <summary>
-        /// Given a DateTime, return a Julian Date. The time component of the input date is ignored.
-        /// </summary>
-        /// <param name="date"></param>
-        /// <returns></returns>
-        public static double GetJulianDate(DateTime date)
-        {
-            var d = date.Day;
-            var m = date.Month;
-            var y = date.Year;
-            var serial = (1461 * (y + 4800 + (m - 14) / 12)) / 4 +
-                 (367 * (m - 2 - 12 * ((m - 14) / 12))) / 12 -
-                 (3 * ((y + 4900 + (m - 14) / 12) / 100)) / 4 + d - 32075;
-
-            double seconds = date.Hour * 3600 + date.Minute * 60 + date.Second;
-            return serial - 0.5 + seconds / 86400.0;
-        }
-
-    }
 
     static class VSop87d
     {

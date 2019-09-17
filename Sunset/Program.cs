@@ -13,18 +13,14 @@ namespace Sunset
         {
             try
             {
-                // SumSeries2();
                 // 50.6611° N, 14.0531° E Ústí nad Labem
                 // 34.9011° S, 56.1645° Montevideo
-                var lat = 69;
-                var lon = 7;
-                var date = new DateTime(2019, 6, 16);
+                var lat = 50.6611;
+                var lon = 14.0531;
+                var date = new DateTime(2019, 9, 17);
 
                 Sun.SunRise(out var rise, out var set, lat, lon, date);
-                rise *= 24.0;
-                set *= 24.0;
-                Console.WriteLine($"sun rise {(int)(rise)}:{(int)((rise - Math.Truncate(rise)) * 60)} set {(int)(set)}:{(int)((set - Math.Truncate(set)) * 60)}");
-                Console.WriteLine();
+                Console.WriteLine($"sun rise {Utils.GetTimeFromDayFraction(rise)} set {Utils.GetTimeFromDayFraction(set)}");
             }
             catch (Exception ex)
             {
